@@ -15,6 +15,7 @@ import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -26,8 +27,8 @@ public class ExcelCreater<T> {
 		Excel2003, Excel2010
 	}
 
-	public ExcelType Excel2003 = ExcelType.Excel2003;
-	public ExcelType Excel2010 = ExcelType.Excel2010;
+	public static final ExcelType Excel2003 = ExcelType.Excel2003;
+	public static final ExcelType Excel2010 = ExcelType.Excel2010;
 
 	private List<Column> list = new ArrayList<>();
 
@@ -39,7 +40,7 @@ public class ExcelCreater<T> {
 		list.add(new FunctionColumn(title, function));
 	}
 
-	public void createExcel(File file, List<T> data) throws FileNotFoundException {
+	public void createExcel(File file, List<T> data) {
 		if (!file.exists()) {
 			try {
 				file.createNewFile();
@@ -51,12 +52,16 @@ public class ExcelCreater<T> {
 			throw new RuntimeException("The file is a directory!");
 		}
 		String fileName = file.getName();
-		if (fileName.endsWith(".xlsx")) {
-			createExcel(new FileOutputStream(file), data, Excel2010);
-		} else if (fileName.endsWith(".xls")) {
-			createExcel(new FileOutputStream(file), data, Excel2003);
-		} else {
-			throw new RuntimeException("The file name error!");
+		try {
+			if (fileName.endsWith(".xlsx")) {
+				createExcel(new FileOutputStream(file), data, Excel2010);
+			} else if (fileName.endsWith(".xls")) {
+				createExcel(new FileOutputStream(file), data, Excel2003);
+			} else {
+				throw new RuntimeException("The file name error!");
+			}
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
 		}
 	}
 
@@ -74,7 +79,7 @@ public class ExcelCreater<T> {
 			break;
 		}
 		Font font = workBook.createFont();
-		font.setFontHeight((short) 18);
+		font.setFontHeightInPoints((short) 18);
 		font.setFontName("黑体");
 		font.setBold(true);
 		CellStyle titleStyle = workBook.createCellStyle();
@@ -83,6 +88,7 @@ public class ExcelCreater<T> {
 		titleStyle.setBorderLeft(BorderStyle.MEDIUM);
 		titleStyle.setBorderRight(BorderStyle.MEDIUM);
 		titleStyle.setBorderTop(BorderStyle.MEDIUM);
+		titleStyle.setAlignment(HorizontalAlignment.CENTER);
 		Sheet sheet1 = workBook.createSheet("sheet1");
 		Row createRow = sheet1.createRow(0);
 		int col = 0;
@@ -126,6 +132,17 @@ public class ExcelCreater<T> {
 				col++;
 			}
 			row++;
+		}
+		try {
+			workBook.write(out);
+		} catch (IOException e) {
+		} finally {
+			try {
+				out.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 	}
 
