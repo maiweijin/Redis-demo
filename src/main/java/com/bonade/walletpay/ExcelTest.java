@@ -10,13 +10,15 @@ import com.bonade.walletpay.spdb.ExcelObject;
 
 public class ExcelTest {
 	public static void main(String[] args) throws FileNotFoundException {
-		ExcelHelper<String> create = new ExcelObject<>();
-		List<String> string = new ArrayList<>();
-		string.add("qwe");
-		string.add("asd");
-		string.add("zxc");
-		create.addColumn("列1", (str) -> str + 1);
-		create.addColumn("列2", (str) -> str + 2);
-		create.createExcel(new File("e://test.xls"), string);
+		ExcelHelper<TestObject> create = new ExcelObject<>();
+		TestObject t = new TestObject();
+		List<TestObject> string = new ArrayList<>();
+		string.add(t);
+		t.setAge(10);
+		t.setName("ming");
+		TestObject model = create.getModel(t);
+		create.addColumn("姓名", model.getName());
+		create.addColumn("年齡", model.getAge());
+		create.createExcel(new File("e://test.xlsx"), string);
 	}
 }

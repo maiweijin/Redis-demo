@@ -6,6 +6,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -21,19 +24,31 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import net.sf.cglib.proxy.Enhancer;
+
 public class ExcelObject<T> implements ExcelHelper<T> {
 
 	enum ExcelType {
 		Excel2003, Excel2010
 	}
-
+	
 	public static final ExcelType Excel2003 = ExcelType.Excel2003;
 	public static final ExcelType Excel2010 = ExcelType.Excel2010;
 
 	private List<Column> list = new ArrayList<>();
 
-	public void addColumn(String title, String fieldName) {
-		list.add(new StringColumn(title, fieldName));
+	private ModelHandler modelHandler;
+	
+	public void addColumn(String title, Object method) {
+		if(method == null){
+			list.add(new NullColumn(title));
+			return;
+		}
+		if(Enhancer.isEnhanced(method.getClass())){
+			list.add(new ObjectColumn(title, method));
+			return;
+		}
+		list.add(new ObjectColumn(title, method));
 	}
 
 	public void addColumn(String title, Function<T, String> function) {
@@ -105,28 +120,25 @@ public class ExcelObject<T> implements ExcelHelper<T> {
 			for (Column column : list) {
 				Cell cell = wbRow.createCell(col);
 				try {
-					StringColumn strCol = (StringColumn) column;
-					Class<? extends Object> clazz = t.getClass();
-					Field field = null;
-					while (true) {
-						try {
-							field = clazz.getField(strCol.getValue());
-							Object object = field.get(t);
-							cell.setCellValue(object.toString());
-						} catch (NoSuchFieldException | SecurityException e) {
-							clazz = clazz.getSuperclass();
-						} catch (IllegalArgumentException e) {
-							break;
-						} catch (IllegalAccessException e) {
-							break;
-						}
-					}
+					ObjectColumn strCol = (ObjectColumn) column;
+					Object value = strCol.getValue();
+					Method method = modelHandler.getMethod(value);
+					Object invoke = method.invoke(t, modelHandler.getArgs(value));
+					cell.setCellValue(invoke.toString());
 				} catch (ClassCastException e) {
+				} catch (IllegalAccessException e) {
+				} catch (IllegalArgumentException e) {
+				} catch (InvocationTargetException e) {
 				}
 				try {
 					FunctionColumn funCol = (FunctionColumn) column;
 					String result = funCol.getFunction().apply(t);
-					cell.setCellValue(result);
+					cell.setCellValue(result==null?"":result);
+				} catch (ClassCastException e) {
+				}
+				try {
+					NullColumn nullCol = (NullColumn) column;
+					cell.setCellValue("");
 				} catch (ClassCastException e) {
 				}
 				col++;
@@ -146,6 +158,16 @@ public class ExcelObject<T> implements ExcelHelper<T> {
 		}
 	}
 
+	@Override
+	public T getModel(T t) {
+		Enhancer enhancer = new Enhancer();
+		enhancer.setSuperclass(t.getClass());
+		modelHandler = new ModelHandler();
+		enhancer.setCallback(modelHandler);
+		enhancer.setClassLoader(this.getClass().getClassLoader());
+		return (T) enhancer.create();
+	}
+	
 	abstract class Column {
 		private String title;
 
@@ -164,19 +186,19 @@ public class ExcelObject<T> implements ExcelHelper<T> {
 
 	}
 
-	class StringColumn extends Column {
-		private String value;
+	class ObjectColumn extends Column {
+		private Object value;
 
-		public StringColumn(String title, String value) {
+		public ObjectColumn(String title, Object value) {
 			super(title);
 			this.value = value;
 		}
 
-		public String getValue() {
+		public Object getValue() {
 			return value;
 		}
 
-		public void setValue(String value) {
+		public void setValue(Object value) {
 			this.value = value;
 		}
 	}
@@ -198,4 +220,9 @@ public class ExcelObject<T> implements ExcelHelper<T> {
 		}
 	}
 
+	class NullColumn extends Column{
+		public NullColumn(String title) {
+			super(title);
+		}
+	}
 }
